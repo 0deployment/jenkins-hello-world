@@ -13,7 +13,7 @@ jobs:
       - name: Get Org Members Last Activity
         run: |
           ORG="0deployment"
-          TOKEN="${{ secrets.GITHUB_TOKEN }}"
+          TOKEN="${{ secrets.GH_AC }}"
           OUTPUT="last_usage.csv"
 
           echo "username,last_event_time" > $OUTPUT
