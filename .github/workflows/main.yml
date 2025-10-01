@@ -1,4 +1,4 @@
-name: Org Members Last Activity
+name: Org Members Full Activity Log
 
 on:
   workflow_dispatch:   # Manual trigger
@@ -10,28 +10,42 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v4
 
-      - name: Get Org Members Last Activity
+      - name: Get Org Members Activity Logs
         run: |
           ORG="0deployment"
           TOKEN="${{ secrets.GH_AC }}"
-          OUTPUT="last_usage.csv"
+          OUTPUT="members_activity.csv"
 
-          echo "username,last_event_time" > $OUTPUT
+          echo "username,event_type,repo,created_at" > $OUTPUT
 
           # Get all members of the org
           MEMBERS=$(curl -s -H "Authorization: Bearer $TOKEN" \
             "https://api.github.com/orgs/$ORG/members?per_page=100" | jq -r '.[].login')
 
           for USER in $MEMBERS; do
-            LAST_EVENT=$(curl -s -H "Authorization: Bearer $TOKEN" \
-              "https://api.github.com/users/$USER/events?per_page=1" | jq -r '.[0].created_at // "no_activity"')
-            echo "$USER,$LAST_EVENT" >> $OUTPUT
+            PAGE=1
+            while true; do
+              EVENTS=$(curl -s -H "Authorization: Bearer $TOKEN" \
+                "https://api.github.com/users/$USER/events?per_page=100&page=$PAGE")
+
+              COUNT=$(echo "$EVENTS" | jq length)
+
+              if [ "$COUNT" -eq 0 ]; then
+                break
+              fi
+
+              echo "$EVENTS" | jq -r \
+                '.[] | [.actor.login, .type, .repo.name, .created_at] | @csv' >> $OUTPUT
+
+              PAGE=$((PAGE+1))
+            done
           done
 
-          cat $OUTPUT
+          echo "Generated activity log at $OUTPUT"
+          head -n 20 $OUTPUT  # show preview
 
       - name: Upload CSV as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: org-last-usage
-          path: last_usage.csv
+          name: org-members-activity
+          path: members_activity.csv
