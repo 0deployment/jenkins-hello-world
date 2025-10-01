@@ -1,0 +1,37 @@
+name: Org Members Last Activity
+
+on:
+  workflow_dispatch:   # Manual trigger
+
+jobs:
+  get-activity:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+
+      - name: Get Org Members Last Activity
+        run: |
+          ORG="0deployment"
+          TOKEN="${{ secrets.GITHUB_TOKEN }}"
+          OUTPUT="last_usage.csv"
+
+          echo "username,last_event_time" > $OUTPUT
+
+          # Get all members of the org
+          MEMBERS=$(curl -s -H "Authorization: Bearer $TOKEN" \
+            "https://api.github.com/orgs/$ORG/members?per_page=100" | jq -r '.[].login')
+
+          for USER in $MEMBERS; do
+            LAST_EVENT=$(curl -s -H "Authorization: Bearer $TOKEN" \
+              "https://api.github.com/users/$USER/events?per_page=1" | jq -r '.[0].created_at // "no_activity"')
+            echo "$USER,$LAST_EVENT" >> $OUTPUT
+          done
+
+          cat $OUTPUT
+
+      - name: Upload CSV as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: org-last-usage
+          path: last_usage.csv
